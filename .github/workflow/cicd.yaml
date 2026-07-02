@@ -6,8 +6,8 @@ on:
       - main
 
 env:
-  DOCKER_IMAGE: fedebi1/chatbot-1
-  CONTAINER_NAME: chatbot-1
+  DOCKER_IMAGE: fedebi1/chatbot-agent-1
+  CONTAINER_NAME: chatbot-agent-1
   CONTAINER_PORT: 8501
   HOST_PORT: 8501
 
