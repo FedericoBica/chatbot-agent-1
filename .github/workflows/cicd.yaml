@@ -1,0 +1,78 @@
+name: CI/CD Deploy to AWS EC2 with Docker Hub
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  DOCKER_IMAGE: your-dockerhub-username/my-agent-app
+  CONTAINER_NAME: my-agent-app
+  CONTAINER_PORT: 8501
+  HOST_PORT: 8501
+
+jobs:
+  deploy:
+    name: Build and deploy
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        run: |
+          docker build -t $DOCKER_IMAGE:${{ github.sha }} .
+          docker tag $DOCKER_IMAGE:${{ github.sha }} $DOCKER_IMAGE:latest
+          docker push $DOCKER_IMAGE:${{ github.sha }}
+          docker push $DOCKER_IMAGE:latest
+
+      - name: Deploy on EC2
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          DOCKER_IMAGE: ${{ env.DOCKER_IMAGE }}
+          CONTAINER_NAME: ${{ env.CONTAINER_NAME }}
+          CONTAINER_PORT: ${{ env.CONTAINER_PORT }}
+          HOST_PORT: ${{ env.HOST_PORT }}
+
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+
+          LANGSMITH_TRACING: ${{ secrets.LANGSMITH_TRACING }}
+          LANGSMITH_ENDPOINT: ${{ secrets.LANGSMITH_ENDPOINT }}
+          LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+          LANGSMITH_PROJECT: ${{ secrets.LANGSMITH_PROJECT }}
+
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          envs: DOCKER_IMAGE,CONTAINER_NAME,CONTAINER_PORT,HOST_PORT,OPENAI_API_KEY,TAVILY_API_KEY,LANGSMITH_TRACING,LANGSMITH_ENDPOINT,LANGSMITH_API_KEY,LANGSMITH_PROJECT,GOOGLE_API_KEY,GROQ_API_KEY
+          script: |
+            docker pull $DOCKER_IMAGE:latest
+
+            docker stop $CONTAINER_NAME || true
+            docker rm $CONTAINER_NAME || true
+
+            docker run -d \
+              --name $CONTAINER_NAME \
+              --restart unless-stopped \
+              -p $HOST_PORT:$CONTAINER_PORT \
+              -e OPENAI_API_KEY="$OPENAI_API_KEY" \
+              -e TAVILY_API_KEY="$TAVILY_API_KEY" \
+              -e LANGSMITH_TRACING="$LANGSMITH_TRACING" \
+              -e LANGSMITH_ENDPOINT="$LANGSMITH_ENDPOINT" \
+              -e LANGSMITH_API_KEY="$LANGSMITH_API_KEY" \
+              -e LANGSMITH_PROJECT="$LANGSMITH_PROJECT" \
+              -e GOOGLE_API_KEY="$GOOGLE_API_KEY" \
+              -e GROQ_API_KEY="$GROQ_API_KEY" \
+              $DOCKER_IMAGE:latest
