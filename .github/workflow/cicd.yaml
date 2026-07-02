@@ -14,7 +14,7 @@ env:
 jobs:
   deploy:
     name: Build and deploy
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
